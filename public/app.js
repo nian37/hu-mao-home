@@ -325,7 +325,7 @@
     return `<div class="upload-zone" onclick="document.getElementById('${targetId}').click()">
         <span class="big">${isV ? '🎬' : '🖼️'}</span>
         点击从系统相册选择${isV ? '视频' : '图片'}
-        <span class="small">${isV ? 'mp4 / mov，单段 60MB 内' : 'jpg / png / webp，单张 8MB 内'}</span>
+        <span class="small">${isV ? 'mp4 / mov，单段 16MB 内' : 'jpg / png / webp，单张 8MB 内'}</span>
       </div>
       <input type="file" id="${targetId}" accept="${isV ? 'video/*' : 'image/*'}" data-kind="${kind}" data-target="${isV ? 'f_video' : 'f_image'}" style="display:none" />
       <input type="hidden" id="${isV ? 'f_video' : 'f_image'}" />
@@ -414,9 +414,9 @@
       const kind = input.dataset.kind;
       const targetId = input.dataset.target;
       const file = input.files[0];
-      const max = kind === 'video' ? 60 * 1024 * 1024 : 8 * 1024 * 1024;
+      const max = kind === 'video' ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
       if (file.size > max) {
-        toast(kind === 'video' ? '视频过大，请压缩到 60MB 内' : '图片过大，请压缩到 8MB 内', 'err');
+        toast(kind === 'video' ? '视频过大，请压缩到 16MB 内' : '图片过大，请压缩到 8MB 内', 'err');
         input.value = '';
         return;
       }

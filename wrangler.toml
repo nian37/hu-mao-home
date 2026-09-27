@@ -1,0 +1,12 @@
+name = "humiao-home"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[kv_namespaces]]
+binding = "HUMIAO_DATA"
+id = "6925ba78c98543209413f5d0f129ef4a"
