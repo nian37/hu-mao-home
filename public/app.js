@@ -120,7 +120,7 @@
 
   // ---------- 栏目分类 ----------
   function catOf(coll) {
-    if (coll === 'duoCards' || coll === 'tigerCards' || coll === 'catCards') return 'imageCard';
+    if (coll === 'duoCards' || coll === 'tigerCards' || coll === 'catCards' || coll === 'fanMerch') return 'imageCard';
     if (coll === 'stages') return 'video';
     if (coll === 'photos') return 'photo';
     if (coll === 'sugars') return 'generic';
