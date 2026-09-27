@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>虎猫的小屋 ｜ CP安利站</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-paws">🐾</div>
+        <div>
+          <h1 id="siteTitle">虎猫的小屋</h1>
+          <p id="siteSlogan" class="slogan"></p>
+        </div>
+      </div>
+      <button id="openSettingsBtn" class="ghost-btn" title="设置">⚙︎ 设置</button>
+    </div>
+  </header>
+
+  <!-- 查看者提示条 -->
+  <div id="viewerBar" class="viewer-bar">
+    <span>👀 你正在以<strong>浏览模式</strong>观看，如需添加 / 修改 / 删除内容，请先输入管理密码后<strong>解锁</strong>。</span>
+    <input type="password" id="viewerPwd" placeholder="输入管理密码" autocomplete="off" />
+    <button id="viewerPwdBtn" class="btn btn-primary">🔓 解锁</button>
+  </div>
+
+  <!-- 导航 -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="profile">🏡 个人信息</button>
+    <button class="tab" data-tab="duoCards">💞 双人小卡</button>
+    <button class="tab" data-tab="tigerCards">🐯 虎·单人小卡</button>
+    <button class="tab" data-tab="catCards">🐱 猫·单人小卡</button>
+    <button class="tab" data-tab="stages">🎤 双人舞台</button>
+    <button class="tab" data-tab="sugars">🍬 糖点记录</button>
+    <button class="tab" data-tab="stories">📖 动物IP小故事</button>
+    <button class="tab" data-tab="merchNews">🧸 周边上新</button>
+    <button class="tab" data-tab="fanMerch">🧸 饭制周边</button>
+    <button class="tab" data-tab="performanceNews">📢 公演通知</button>
+    <button class="tab" data-tab="vipNews">👑 高会更更</button>
+    <button class="tab" data-tab="photos">📷 照片合集</button>
+  </nav>
+
+  <!-- 内容区 -->
+  <main class="content" id="content">
+    <section id="view-profile" class="view"></section>
+    <section id="view-duoCards" class="view hidden"></section>
+    <section id="view-tigerCards" class="view hidden"></section>
+    <section id="view-catCards" class="view hidden"></section>
+    <section id="view-stages" class="view hidden"></section>
+    <section id="view-sugars" class="view hidden"></section>
+    <section id="view-stories" class="view hidden"></section>
+    <section id="view-merchNews" class="view hidden"></section>
+    <section id="view-fanMerch" class="view hidden"></section>
+    <section id="view-performanceNews" class="view hidden"></section>
+    <section id="view-vipNews" class="view hidden"></section>
+    <section id="view-photos" class="view hidden"></section>
+  </main>
+
+  <footer class="site-footer">
+    <p>🐾 虎猫的小屋 · CP安利站，为爱发电，仅供同好交流学习。</p>
+  </footer>
+
+  <!-- 弹层：记录编辑 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle">新增记录</h3>
+        <button class="icon-btn" onclick="closeModal()">✕</button>
+      </div>
+      <form id="recordForm">
+        <input type="hidden" id="f_col" />
+        <input type="hidden" id="f_id" />
+        <div id="recordFields"></div>
+        <label>管理密码<input type="password" id="f_password" placeholder="输入管理密码以保存" required /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 弹层：个人信息编辑 -->
+  <div id="profileModal" class="modal hidden">
+    <div class="modal-card modal-lg">
+      <div class="modal-head">
+        <h3>编辑个人信息</h3>
+        <button class="icon-btn" onclick="closeProfileModal()">✕</button>
+      </div>
+      <form id="profileForm">
+        <label>CP 名<input type="text" id="p_title" /></label>
+        <label>宣传语<input type="text" id="p_slogan" /></label>
+        <label>CP 成团 / 发布会日期<input type="text" id="p_debutDate" placeholder="如 2025-08-24，选填" /></label>
+
+        <div class="profile-sub-form">
+          <div class="form-section-title">🐯 虎 个人信息</div>
+          <label>名字（必填）<input type="text" id="t_name" required /></label>
+          <label>生日（必填）<input type="text" id="t_birthday" required placeholder="如 2005-08-10" /></label>
+          <label>公开日期<input type="text" id="t_publicDate" placeholder="选填，如 2024-06-15" /></label>
+          <label>微博主页链接<input type="url" id="t_weibo" placeholder="选填，如 https://weibo.com/u/xxx" /></label>
+        </div>
+
+        <div class="profile-sub-form">
+          <div class="form-section-title">🐱 猫 个人信息</div>
+          <label>名字（必填）<input type="text" id="c_name" required /></label>
+          <label>生日（必填）<input type="text" id="c_birthday" required placeholder="如 2005-08-10" /></label>
+          <label>公开日期<input type="text" id="c_publicDate" placeholder="选填，如 2024-06-15" /></label>
+          <label>微博主页链接<input type="url" id="c_weibo" placeholder="选填，如 https://weibo.com/u/xxx" /></label>
+        </div>
+
+        <label>
+          顶部横幅图<input type="text" id="p_banner" placeholder="粘贴图片网址，或上传："/><br/>
+          <input type="file" id="p_bannerFile" accept="image/*" />
+        </label>
+        <label>简介<textarea id="p_intro" rows="5"></textarea></label>
+        <label>暖心语录（每行一条）<textarea id="p_quotes" rows="4" placeholder="“…”"></textarea></label>
+        <label>管理密码<input type="password" id="p_password" placeholder="输入管理密码以保存" required /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeProfileModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 弹层：设置 -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>⚙︎ 设置</h3>
+        <button class="icon-btn" onclick="closeSettings()">✕</button>
+      </div>
+      <form id="passwordForm">
+        <p class="hint">“虎猫的小屋”遵循：<strong>游客可自由浏览</strong>，<strong>添加 / 修改 / 删除需要管理密码</strong>。</p>
+        <label>当前密码<input type="password" id="pw_current" required /></label>
+        <label>新密码<input type="password" id="pw_next" minlength="4" required /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeSettings()">关闭</button>
+          <button type="submit" class="btn btn-primary">修改密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 全屏图片查看 -->
+  <div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
+    <img id="lightboxImg" src="" alt="预览" />
+  </div>
+
+  <!-- 页内轻提示 -->
+  <div id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

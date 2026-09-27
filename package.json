@@ -1,0 +1,12 @@
+{
+  "name": "humao-house",
+  "version": "1.0.0",
+  "description": "虎猫的小屋 CP安利站",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

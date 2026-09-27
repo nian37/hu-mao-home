@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "password": "07071001",
+  "profile": {
+    "cpTitle": "虎猫",
+    "slogan": "两只小猫咪要在舞台上闪闪发光呀～",
+    "debutDate": "",
+    "intro": "",
+    "bannerImage": "",
+    "quotes": [],
+    "tiger": {
+      "name": "虎",
+      "birthday": "",
+      "publicDate": "",
+      "weibo": ""
+    },
+    "cat": {
+      "name": "猫",
+      "birthday": "",
+      "publicDate": "",
+      "weibo": ""
+    }
+  },
+  "duoCards": [],
+  "tigerCards": [],
+  "catCards": [],
+  "stages": [],
+  "sugars": [],
+  "stories": [],
+  "merchNews": [],
+  "fanMerch": [],
+  "performanceNews": [],
+  "vipNews": [],
+  "photos": []
+}
