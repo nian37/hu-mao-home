@@ -1,6 +1,7 @@
 node_modules/
 data/uploads/
 .trae-html-share-packages/
+static-site/
 *.zip
 *.log
 .DS_Store

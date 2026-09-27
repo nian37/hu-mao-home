@@ -5,6 +5,8 @@
   let data = null;        // 公共数据（不含密码）
   let sessionPwd = '';    // 解锁后的管理密码（仅存于内存）
   let currentTab = 'profile';
+  // GitHub Pages 静态只读模式：构建时通过 data.js 注入 window.STATIC_DATA
+  const IS_STATIC = typeof window.STATIC_DATA !== 'undefined';
 
   const collections = {
     duoCards: { title: '💞 虎猫双人小卡', sub: '双人合照 / 官方小卡 / 同框瞬间', type: 'grid' },
@@ -46,8 +48,16 @@
 
   // ---------- 数据加载 ----------
   async function loadData() {
-    const res = await fetch('/api/data');
-    data = await res.json();
+    if (IS_STATIC) {
+      data = window.STATIC_DATA || {};
+    } else {
+      const res = await fetch('/api/data');
+      data = await res.json();
+    }
+    if (IS_STATIC) {
+      const vb = $('#viewerBar'); if (vb) vb.classList.add('hidden');
+      const sb = $('#openSettingsBtn'); if (sb) sb.style.display = 'none';
+    }
     renderProfile(data.profile);
     renderTabs();
     // 渲染所有栏目以便切换
@@ -101,9 +111,9 @@
         ${p.debutDate ? `<p class="prof-line">📅 CP 成团 / 发布会：<b>${esc(p.debutDate)}</b></p>` : ''}
         ${p.intro ? `<div class="intro">${esc(p.intro)}</div>` : ''}
         ${(p.quotes && p.quotes.length) ? `<div class="quotes"><h4>✨ 暖心语录</h4>${p.quotes.map(q => `<div class="quote">${esc(q)}</div>`).join('')}</div>` : ''}
-        <div class="add-row">
+        ${sessionPwd !== '' ? `<div class="add-row">
           <button class="btn btn-primary is-edit" onclick="window.editProfile()">✏️ 编辑个人信息</button>
-        </div>
+        </div>` : ''}
       </div>
     `;
   }
