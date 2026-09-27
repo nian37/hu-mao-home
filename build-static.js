@@ -37,6 +37,9 @@ function main() {
   // 复制静态资源
   fs.copyFileSync(path.join(PUBLIC, 'style.css'), path.join(OUT, 'style.css'));
   fs.copyFileSync(path.join(PUBLIC, 'app.js'), path.join(OUT, 'app.js'));
+  fs.copyFileSync(path.join(PUBLIC, 'sw.js'), path.join(OUT, 'sw.js'));
+  fs.copyFileSync(path.join(PUBLIC, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
+  fs.cpSync(path.join(PUBLIC, 'icons'), path.join(OUT, 'icons'), { recursive: true });
 
   // 数据：重写相对媒体路径后注入 data.js
   const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));

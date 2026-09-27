@@ -462,4 +462,50 @@ form label input[type=file] { border: none; padding: 4px 0; font-size: 12px; }
 .stage-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .stage-title { font-size: 15px; font-weight: 900; margin-bottom: 4px; }
 .stage-date { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+
+/* ================= iOS / Android 适配 ================= */
+html { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; text-size-adjust: 100%; }
+* { -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior-y: none; }
+
+/* 管理员模式开启时的按钮高亮 */
+.ghost-btn.locked-on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.ghost-btn.locked-on:hover { background: var(--accent-deep); }
+
+/* 刘海屏 / 手势条安全区域 */
+.site-header { padding-top: max(14px, env(safe-area-inset-top)); }
+.content, .viewer-bar, .site-footer, #tabs {
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+}
+
+/* PWA 全屏下状态栏为透明时，页面背景覆盖到最顶部 */
+@media (display-mode: standalone) {
+  body { background-color: var(--bg); }
+}
+
+/* 手机端表单输入框 base font≥16px，防止 iOS 聚焦自动放大 */
+@media (max-width: 640px) {
+  input, textarea, select, .modal-card input, .modal-card textarea {
+    font-size: 16px;
+  }
+}
+
+/* 移动端紧凑化 */
+@media (max-width: 480px) {
+  .site-header { padding-top: max(12px, env(safe-area-inset-top)); }
+  .header-inner { padding: 14px 8px; }
+  .brand-paws { font-size: 30px; }
+  h1 { font-size: 20px; }
+  #tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap; }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; }
+  .modal-card { margin: 0; border-radius: 18px 18px 0 0; max-height: 88vh; }
+  .prof-line, .card-info-bar { font-size: 12px; }
+}
 .stage-content { font-size: 13px; color: var(--ink-soft); line-height: 1.6; white-space: pre-wrap; }

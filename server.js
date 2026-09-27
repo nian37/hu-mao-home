@@ -273,6 +273,12 @@ app.put('/api/profile', requireAuth, (req, res) => {
 });
 
 // ---------- 静态前端 ----------
+app.get('/manifest.webmanifest', (req, res) => {
+  res.set('Content-Type', 'application/manifest+json').sendFile(path.join(__dirname, 'public', 'manifest.webmanifest'));
+});
+app.get('/apple-touch-icon.png', (req, res) => {
+  res.set('Content-Type', 'image/png').sendFile(path.join(__dirname, 'public', 'icons', 'apple-touch-icon.png'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 

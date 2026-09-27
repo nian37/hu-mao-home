@@ -250,10 +250,50 @@
   function setEditMode() {
     const bar = $('#viewerBar');
     bar.classList.add('hidden');
+    updateAdminBtn(true);
     Object.keys(collections).forEach((c) => renderCollection(c));
     renderProfile(data.profile);
-    toast('已解锁，现在可以添加 / 修改 / 删除内容了 ✔');
+    toast('已进入管理员模式，可以添加 / 修改 / 删除内容了 ✔');
   }
+
+  function updateAdminBtn(on) {
+    const b = $('#adminBtn');
+    if (!b) return;
+    b.textContent = on ? '👑 管理员已开启' : '👑 管理员模式';
+    b.classList.toggle('locked-on', !!on);
+  }
+
+  function lockMode() {
+    sessionPwd = '';
+    const bar = $('#viewerBar');
+    if (bar) bar.classList.remove('hidden');
+    updateAdminBtn(false);
+    Object.keys(collections).forEach((c) => renderCollection(c));
+    renderProfile(data.profile);
+    toast('已退出管理员模式');
+  }
+
+  // 管理员模式：切换
+  window.toggleAdminMode = () => {
+    if (IS_STATIC) { toast('线上为只读模式，请在本地站进入管理员', 'err'); return; }
+    if (sessionPwd !== '') { lockMode(); return; }
+    $('#adminModal').classList.remove('hidden');
+    const inp = $('#adminPwd'); if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+  };
+  window.closeAdmin = () => $('#adminModal').classList.add('hidden');
+
+  // 管理员密码提交
+  $('#adminForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pwd = $('#adminPwd').value;
+    if (!pwd) return toast('请输入密码', 'err');
+    const ok = await checkPwd(pwd);
+    if (!ok) { toast('密码错误', 'err'); return; }
+    sessionPwd = pwd;
+    $('#adminPwd').value = '';
+    $('#adminModal').classList.add('hidden');
+    setEditMode();
+  });
 
   $('#viewerPwdBtn').addEventListener('click', async () => {
     const pwd = $('#viewerPwd').value;

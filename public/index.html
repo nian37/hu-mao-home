@@ -2,11 +2,22 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>虎猫的小屋 ｜ CP安利站</title>
+  <meta name="description" content="虎猫的小屋 · CP安利站，记录虎猫的每一个心动瞬间" />
+  <meta name="theme-color" content="#F58D42" />
+  <!-- iOS Safari 全屏 / 图标 / 状态栏适配 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="虎猫的小屋" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
 </head>
 <body>
 
@@ -19,6 +30,7 @@
           <p id="siteSlogan" class="slogan"></p>
         </div>
       </div>
+      <button id="adminBtn" class="ghost-btn" title="管理员模式" onclick="window.toggleAdminMode()">👑 管理员模式</button>
       <button id="openSettingsBtn" class="ghost-btn" title="设置">⚙︎ 设置</button>
     </div>
   </header>
@@ -129,7 +141,24 @@
     </div>
   </div>
 
-  <!-- 弹层：设置 -->
+  <!-- 弹层：管理员模式 & 设置 -->
+  <div id="adminModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>👑 管理员模式</h3>
+        <button class="icon-btn" onclick="window.closeAdmin()">✕</button>
+      </div>
+      <form id="adminForm">
+        <p class="hint">进入管理员模式后，即可<strong>添加 / 修改 / 删除</strong>本站内容。请先输入管理密码。</p>
+        <label>管理密码<input type="password" id="adminPwd" placeholder="输入管理密码" autocomplete="off" required /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="window.closeAdmin()">取消</button>
+          <button type="submit" class="btn btn-primary">确认进入</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="settingsModal" class="modal hidden">
     <div class="modal-card">
       <div class="modal-head">
@@ -157,5 +186,13 @@
   <div id="toast"></div>
 
   <script src="app.js"></script>
+  <script>
+    // 注册 Service Worker（离线 + 添加到主屏幕）
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>
