@@ -192,7 +192,13 @@ export default {
 
     // 非 /api 请求：交给静态资源
     if (!p.startsWith('/api/')) {
-      return env.ASSETS.fetch(request);
+      // 关键导航文件不要被边缘/浏览器强缓存，保证新版快速接管
+      const bypass = p === '/' || p === '/index.html' || p === '/sw.js';
+      if (!bypass) return env.ASSETS.fetch(request);
+      const res = await env.ASSETS.fetch(request);
+      const res2 = new Response(res.body, res);
+      res2.headers.set('Cache-Control', 'no-cache');
+      return res2;
     }
 
     const parts = p.split('/').filter(Boolean); // ['api', ...]
