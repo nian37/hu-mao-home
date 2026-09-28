@@ -2,12 +2,19 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const webpush = require('web-push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const META_FILE = path.join(DATA_DIR, 'meta.json');
+
+// Web Push VAPID 密钥（与 Cloudflare Worker 保持一致）
+const VAPID_PUBLIC_KEY = 'BGCFbLtEvN_ZAKwmK5PlfRXTKSQVinrjk70UlCAXH0dfRsWso-zFb0guUfTXdpYmxzw30jfO9vg73uujgQBLnqY';
+const VAPID_PRIVATE_KEY = 'LT9ksUTHZBArHHaBE5v23Oa7-9MHp96n206WlSHr5t4';
+const VAPID_SUBJECT = 'mailto:push@hoyiho.dev';
 
 // 提前启用 JSON 解析，保证所有接口（含 /api/upload）都能读取请求体
 app.use(express.json({ limit: '100mb' }));
@@ -44,6 +51,23 @@ const DEFAULT_DATA = {
 const INIT_PASSWORD = '07071001';
 
 let db = load();
+
+// ---------- 后台推送辅助数据（公告 / Web Push 订阅） ----------
+let meta = { announcement: { text: '', ts: null }, pushSubs: [], lastNotification: {} };
+function loadMeta() {
+  try {
+    if (fs.existsSync(META_FILE)) {
+      const m = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
+      meta = Object.assign(meta, m);
+    }
+  } catch (e) { /* 忽略损坏的 meta */ }
+  return meta;
+}
+function saveMeta() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
+}
+loadMeta();
 
 function newId() {
   return crypto.randomBytes(8).toString('hex');
@@ -174,6 +198,17 @@ app.get('/api/data', (req, res) => {
   res.json(pub);
 });
 
+// 后台推送相关只读接口（须在通用 /:collection 之前注册，避免被拦截）
+app.get('/api/announcement', (req, res) => {
+  res.json({ text: meta.announcement.text || '', ts: meta.announcement.ts || null });
+});
+app.get('/api/push-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY, subject: VAPID_SUBJECT });
+});
+app.get('/api/notification', (req, res) => {
+  res.json({ title: meta.lastNotification.title || '', body: meta.lastNotification.body || '', ts: meta.lastNotification.ts || null });
+});
+
 // 任意单集合读取
 app.get('/api/:collection', (req, res) => {
   const c = req.params.collection;
@@ -209,6 +244,46 @@ app.post('/api/password', (req, res) => {
   db.password = String(next);
   save();
   res.json({ ok: true, message: '密码已更新' });
+});
+
+// ---------- 后台信息推送（公告 + Web Push） ----------
+app.post('/api/announcement', requireAuth, (req, res) => {
+  const text = String(req.body.text || '').slice(0, 500).trim();
+  const ts = text ? new Date().toISOString() : null;
+  meta.announcement = { text, ts };
+  saveMeta();
+  res.json({ ok: true, text, ts });
+});
+
+app.post('/api/subscribe', (req, res) => {
+  const sub = req.body && req.body.subscription;
+  if (!sub || !sub.endpoint) return res.json({ ok: true });
+  meta.pushSubs = meta.pushSubs.filter(s => s && s.endpoint && s.endpoint !== sub.endpoint);
+  meta.pushSubs.push(sub);
+  if (meta.pushSubs.length > 2000) meta.pushSubs = meta.pushSubs.slice(-2000);
+  saveMeta();
+  res.json({ ok: true });
+});
+app.post('/api/push', requireAuth, async (req, res) => {
+  const title = String(req.body.title || '').slice(0, 100).trim();
+  const body = String(req.body.body || '').slice(0, 300).trim();
+  // 若同时提供公告内容，则写入公告（供站内横幅展示）
+  let annTs = null;
+  if (typeof req.body.text !== 'undefined') {
+    const annText = String(req.body.text || '').slice(0, 500).trim();
+    annTs = annText ? new Date().toISOString() : null;
+    meta.announcement = { text: annText, ts: annTs };
+  }
+  if (!title && !body) { saveMeta(); return res.json({ ok: true, text: '', ts: annTs, message: '公告已更新，未发送系统通知' }); }
+  meta.lastNotification = { title, body, ts: new Date().toISOString() };
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  let sent = 0, failed = 0;
+  for (const s of meta.pushSubs) {
+    try { await webpush.sendNotification(s, '', { TTL: 86400 }); sent++; }
+    catch (e) { failed++; }
+  }
+  saveMeta();
+  res.json({ ok: true, sent, failed, total: meta.pushSubs.length, ts: annTs });
 });
 
 // ---------- 写操作（需密码） ----------

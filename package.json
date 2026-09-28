@@ -4,9 +4,16 @@
   "description": "虎猫的小屋 CP安利站",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "build:static": "node build-static.js",
+    "deploy:worker": "npx wrangler@latest deploy",
+    "deploy": "npm run build:static"
   },
   "dependencies": {
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "web-push": "^3.6.7"
   }
 }

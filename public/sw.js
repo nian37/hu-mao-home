@@ -1,10 +1,10 @@
 /* 虎猫的小屋 · Service Worker（离线 + 安装） */
-const CACHE = 'humao-cache-v2';
+const CACHE = 'humao-cache-v4';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=2',
-  './app.js?v=2',
+  './style.css?v=4',
+  './app.js?v=4',
   './manifest.webmanifest',
   './icons/icon-144.png',
   './icons/icon-192.png',
@@ -25,6 +25,50 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
+  );
+});
+
+// 收到系统通知推送后展示（空 payload → 拉取后端最近推送内容）
+self.addEventListener('push', (e) => {
+  e.waitUntil((async () => {
+    let title = '虎猫的小屋';
+    let body = '有新消息推送啦～';
+    let tag = '';
+    let url = '/';
+    try {
+      if (e.data && e.data.json()) {
+        const p = e.data.json();
+        if (p.title) title = p.title;
+        if (p.body) body = p.body;
+        if (p.tag) tag = p.tag;
+        if (p.url) url = p.url;
+      } else {
+        const r = await fetch('./api/notification', { cache: 'no-store' });
+        const n = await r.json();
+        if (n.title) title = n.title;
+        if (n.body) body = n.body;
+      }
+    } catch (err) { /* 保持默认 */ }
+    self.registration.showNotification(title, {
+      body,
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-144.png',
+      tag,
+      data: { url },
+      actions: [{ action: 'open', title: '打开查看' }]
+    });
+  })());
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  if (e.action && e.action !== 'open') return;
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
+      const win = ws.find((w) => 'focus' in w);
+      if (win) { win.focus(); return; }
+      return clients.openWindow(url);
+    })
   );
 });
 

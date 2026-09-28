@@ -2,9 +2,12 @@ node_modules/
 .uploads/
 .wrangler/
 data/uploads/
+data/data.json
+data/meta.json
 .trae-html-share-packages/
 static-site/
 pages-site/
 *.zip
 *.log
+.tmp-test.log
 .DS_Store

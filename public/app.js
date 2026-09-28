@@ -57,6 +57,7 @@
     if (IS_STATIC) {
       const vb = $('#viewerBar'); if (vb) vb.classList.add('hidden');
       const sb = $('#openSettingsBtn'); if (sb) sb.style.display = 'none';
+      const pb = $('#pushBtn'); if (pb) pb.style.display = 'none'; // 静态站只读，无后台推送
     }
     renderProfile(data.profile);
     renderTabs();
@@ -590,6 +591,157 @@
     $('#pw_next').value = '';
   });
 
+  // ---------- 站内公告 ----------
+  async function loadAnnouncement() {
+    if (IS_STATIC) return; // 静态只读模式无公告 API
+    try {
+      const res = await fetch('/api/announcement', { cache: 'no-store' });
+      const d = await res.json();
+      const text = (d && d.text) || '';
+      const ts = (d && d.ts) || '';
+    const key = 'humao_announce_seen_' + ts;
+    const bar = $('#announceBar');
+    if (!bar) return;
+    const textEl = $('#announceText');
+    if (textEl) textEl.dataset.ts = ts;
+    if (text && localStorage.getItem(key) !== '1') {
+      textEl.textContent = text;
+      bar.classList.remove('hidden');
+    } else {
+      bar.classList.add('hidden');
+    }
+    } catch (e) { /* 静默失败 */ }
+  }
+  window.dismissAnnounce = () => {
+    const bar = $('#announceBar');
+    if (!bar) return;
+    bar.classList.add('hidden');
+    // 记录当前公告已读（依据 ts），避免每次刷新都弹
+    try {
+      const ts = $('#announceText').dataset.ts;
+      if (ts) localStorage.setItem('humao_announce_seen_' + ts, '1');
+    } catch (e) { /* ignore */ }
+  };
+
+  // ---------- Web Push 订阅 ----------
+  function pushAvailable() {
+    return !IS_STATIC && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  }
+  async function ensureSW() {
+    if (!('serviceWorker' in navigator)) return null;
+    if (navigator.serviceWorker.controller) return navigator.serviceWorker;
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      return await navigator.serviceWorker.ready;
+    } catch (e) { return null; }
+  }
+  async function getSub() {
+    try {
+      const reg = await ensureSW();
+      if (!reg) return null;
+      return await reg.pushManager.getSubscription();
+    } catch (e) { return null; }
+  }
+  function setNotifBtn(subscribed) {
+    const b = $('#notifBtn');
+    if (!b) return;
+    if (subscribed) { b.textContent = '🔔 已订阅'; b.classList.add('locked-on'); }
+    else { b.textContent = '🔔 通知'; b.classList.remove('locked-on'); }
+  }
+
+  window.toggleNotifSub = async () => {
+    if (!pushAvailable()) { toast('浏览器不支持推送，请使用新版 Chrome / Edge', 'err'); return; }
+    if (Notification.permission === 'denied') {
+      toast('通知权限已被拒绝，请在浏览器设置中开启', 'err');
+      return;
+    }
+    const existing = await getSub();
+    if (existing) { // 退订
+      try {
+        await existing.unsubscribe();
+        await fetch('/api/subscribe', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: null })
+        });
+        setNotifBtn(false);
+        toast('已取消订阅通知 🔕');
+      } catch (e) { toast('取消失败，请重试', 'err'); }
+      return;
+    }
+    try { // 订阅
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { toast('未获得通知权限，无法订阅', 'err'); return; }
+      const reg = await ensureSW();
+      if (!reg) { toast('Service Worker 初始化失败', 'err'); return; }
+      const keyRes = await fetch('/api/push-key', { cache: 'no-store' });
+      const { publicKey } = await keyRes.json();
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+      const saveRes = await fetch('/api/subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() })
+      });
+      const d = await saveRes.json();
+      if (d.ok !== true) throw new Error('save fail');
+      setNotifBtn(true);
+      toast('订阅成功，有新动态会第一时间提醒你 🎉');
+    } catch (e) { toast('订阅失败，请重试', 'err'); }
+  };
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  // 页面加载时恢复订阅按钮状态
+  (async function initPushState() {
+    if (!pushAvailable()) { if ($('#notifBtn')) $('#notifBtn').style.display = 'none'; return; }
+    const sub = await getSub();
+    setNotifBtn(!!sub);
+  })();
+
+  // ---------- 管理推送（公告 + 系统通知） ----------
+  window.openPush = () => {
+    if (IS_STATIC) { toast('线上为只读模式，请在本站后台推送', 'err'); return; }
+    $('#pushModal').classList.remove('hidden');
+  };
+  window.closePush = () => $('#pushModal').classList.add('hidden');
+
+  $('#pushForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = fval('pu_password');
+    const title = fval('pu_title');
+    const body = fval('pu_body');
+    const annText = fval('pu_announce');
+    if (!password) return toast('请输入管理密码', 'err');
+    if (!title && !body && !annText) return toast('请至少填写公告或推送内容', 'err');
+    const payload = { password };
+    if (annText) payload.text = annText; // 公告
+    if (title || body) { payload.title = title; payload.body = body; } // 系统推送
+    try {
+      const res = await fetch('/api/push', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const d = await res.json();
+      if (d.ok !== true) { toast(d.message || '发送失败', 'err'); return; }
+      $('#pushModal').classList.add('hidden');
+      if (annText) { // 刷新公告横幅
+        localStorage.removeItem('humao_announce_seen_' + d.ts);
+        loadAnnouncement();
+      }
+      let msg = '推送已发送 ✔';
+      if (typeof d.sent === 'number') msg += `（系统通知送达 ${d.sent} 人）`;
+      toast(msg);
+    } catch (err) { toast('发送失败，请重试', 'err'); }
+  });
+
   // 默认展示（未解锁时的游客模式先渲染空壳）
   function init() {
     // 先渲染栏目骨架与标签结构
@@ -600,6 +752,7 @@
     });
     $('#view-profile').innerHTML = `<div class="empty">😺 正在加载…</div>`;
     loadData();
+    loadAnnouncement();
   }
 
   init();

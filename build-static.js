@@ -51,8 +51,9 @@ function main() {
   copyDir(UPLOADS, path.join(OUT, 'uploads'));
 
   // index.html：注入 data.js（须在 app.js 之前加载）
+  // 兼容带版本号（?v=N）的 script 引用
   let html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
-  html = html.replace('<script src="app.js"></script>', '<script src="data.js"></script>\n  <script src="app.js"></script>');
+  html = html.replace(/<script src="app\.js(\?v=\d+)?"><\/script>/, '<script src="data.js"></script>\n  <script src="app.js"></script>');
   fs.writeFileSync(path.join(OUT, 'index.html'), html);
 
   console.log('静态站点已生成：', OUT);

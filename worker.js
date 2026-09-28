@@ -117,6 +117,62 @@ function mimeFromName(name) {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }[ext] || 'application/octet-stream';
 }
 
+/* ---------- 后台信息推送（公告 + Web Push） ---------- */
+const VAPID_PUBLIC_KEY = 'BGCFbLtEvN_ZAKwmK5PlfRXTKSQVinrjk70UlCAXH0dfRsWso-zFb0guUfTXdpYmxzw30jfO9vg73uujgQBLnqY';
+const VAPID_PRIVATE_KEY = 'LT9ksUTHZBArHHaBE5v23Oa7-9MHp96n206WlSHr5t4';
+const VAPID_SUBJECT = 'mailto:push@hoyiho.dev';
+
+function b64urlFromBytes(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function bytesFromB64url(str) {
+  const s = str.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+const EC = { name: 'ECDSA', namedCurve: 'P-256' };
+// 用公钥坐标 + 私钥 d 构建 JWK 进行 ES256 签名
+function vapidJwk() {
+  const pub = bytesFromB64url(VAPID_PUBLIC_KEY); // 0x04 || x(32) || y(32)
+  return {
+    kty: 'EC', crv: 'P-256', ext: false,
+    x: b64urlFromBytes(pub.slice(1, 33)),
+    y: b64urlFromBytes(pub.slice(33, 65)),
+    d: VAPID_PRIVATE_KEY
+  };
+}
+async function signJwt(claims, jwk) {
+  const key = await crypto.subtle.importKey('jwk', jwk, EC, false, ['sign']);
+  const enc = (obj) => b64urlFromBytes(new TextEncoder().encode(JSON.stringify(obj)));
+  const toSign = enc({ typ: 'JWT', alg: 'ES256' }) + '.' + enc(claims);
+  const sig = await crypto.subtle.sign({ name: 'ECDSA' }, key, new TextEncoder().encode(toSign));
+  return toSign + '.' + b64urlFromBytes(new Uint8Array(sig));
+}
+async function pushOne(endpoint, ttl) {
+  const aud = new URL(endpoint).origin;
+  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
+  const jwt = await signJwt({ aud, exp }, vapidJwk());
+  return fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `vapid t=${jwt}, k=${VAPID_PUBLIC_KEY}`,
+      'Content-Type': 'text/plain;charset=utf-8',
+      'TTL': String(ttl || 86400),
+      'Urgency': 'normal'
+    },
+    body: ''
+  });
+}
+async function readPushSubs(env) {
+  const raw = await env.HUMIAO_DATA.get('push_subs');
+  if (!raw) return [];
+  try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : []; } catch (e) { return []; }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -222,6 +278,68 @@ export default {
       };
       await env.HUMIAO_DATA.put('data', JSON.stringify(db));
       return json({ ok: true, profile: db.profile });
+    }
+
+    // 全局公告：访客读取 / 管理员发布
+    if (method === 'GET' && segment === 'announcement') {
+      const raw = await env.HUMIAO_DATA.get('announcement');
+      const a = raw ? JSON.parse(raw) : {};
+      return json({ text: a.text || '', ts: a.ts || null });
+    }
+    if (method === 'POST' && segment === 'announcement') {
+      const b = await readBody(request);
+      const db = await loadData(env);
+      if (db.password !== b.password) return json({ ok: false, message: '密码错误或未授权，无法修改' }, 401);
+      const text = String(b.text || '').slice(0, 500).trim();
+      const ts = text ? new Date().toISOString() : null;
+      await env.HUMIAO_DATA.put('announcement', JSON.stringify({ text, ts }));
+      return json({ ok: true, text, ts });
+    }
+
+    // Web Push：提供公钥、保存订阅、管理员群发推送
+    if (method === 'GET' && segment === 'push-key') {
+      return json({ publicKey: VAPID_PUBLIC_KEY, subject: VAPID_SUBJECT });
+    }
+    if (method === 'POST' && segment === 'subscribe') {
+      const b = await readBody(request);
+      const sub = b.subscription;
+      // subscription 为 null 视为退订通知（仅移除本地订阅），直接返回成功
+      if (!sub || !sub.endpoint) return json({ ok: true });
+      let subs = await readPushSubs(env);
+      subs = subs.filter(s => s && s.endpoint && s.endpoint !== sub.endpoint);
+      subs.push(sub);
+      if (subs.length > 2000) subs = subs.slice(-2000);
+      await env.HUMIAO_DATA.put('push_subs', JSON.stringify(subs));
+      return json({ ok: true });
+    }
+    if (method === 'POST' && segment === 'push') {
+      const b = await readBody(request);
+      const db = await loadData(env);
+      if (db.password !== b.password) return json({ ok: false, message: '密码错误或未授权，无法修改' }, 401);
+      const title = String(b.title || '').slice(0, 100).trim();
+      const body = String(b.body || '').slice(0, 300).trim();
+      // 若同时提供公告内容，则写入公告（供站内横幅展示）
+      let annTs = null;
+      if (typeof b.text !== 'undefined') {
+        const annText = String(b.text || '').slice(0, 500).trim();
+        annTs = annText ? new Date().toISOString() : null;
+        await env.HUMIAO_DATA.put('announcement', JSON.stringify({ text: annText, ts: annTs }));
+      }
+      if (!title && !body) return json({ ok: true, text: '', ts: annTs, message: '公告已更新，未发送系统通知' });
+      // 记录最近一条推送，供 Service Worker 拉取展示
+      await env.HUMIAO_DATA.put('last_notification', JSON.stringify({ title, body, ts: new Date().toISOString() }));
+      const subs = await readPushSubs(env);
+      let sent = 0, failed = 0;
+      for (const s of subs) {
+        if (!s.endpoint) continue;
+        try { await pushOne(s.endpoint); sent++; } catch (e) { failed++; }
+      }
+      return json({ ok: true, sent, failed, total: subs.length, ts: annTs });
+    }
+    if (method === 'GET' && segment === 'notification') {
+      const raw = await env.HUMIAO_DATA.get('last_notification');
+      const n = raw ? JSON.parse(raw) : {};
+      return json({ title: n.title || '', body: n.body || '', ts: n.ts || null });
     }
 
     // /api/<coll> 或 /api/<coll>/<id>
