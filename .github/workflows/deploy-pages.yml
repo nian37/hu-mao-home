@@ -7,7 +7,6 @@ on:
       - 'public/**'
       - 'worker.js'
       - 'functions/**'
-      - 'wrangler.pages.toml'
       - 'package.json'
       - 'package-lock.json'
   workflow_dispatch:
@@ -15,8 +14,8 @@ on:
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    env:
+      KV_ID: "6925ba78c98543209413f5d0f129ef4a"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,10 +23,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Bind KV namespace to Pages project
+        run: |
+          curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/humiao-home" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"deployment_configs":{"production":{"kv_namespaces":[{"binding":"HUMIAO_DATA","namespace_id":"'"$KV_ID"'"}]}}}'
       - name: Deploy dynamic site to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public --config=wrangler.pages.toml
+          command: pages deploy public
           workingDirectory: .
