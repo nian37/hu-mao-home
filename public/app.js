@@ -593,7 +593,24 @@
 
   // ---------- 站内公告 ----------
   async function loadAnnouncement() {
-    if (IS_STATIC) return; // 静态只读模式无公告 API
+    if (IS_STATIC) {
+      // 静态只读模式：从构建时注入的 window.STATIC_DATA 读取公告
+      const d = (window.STATIC_DATA && window.STATIC_DATA.announcement) || {};
+      const text = d.text || '';
+      const ts = d.ts || '';
+      const key = 'humao_announce_seen_' + ts;
+      const bar = $('#announceBar');
+      if (!bar) return;
+      const textEl = $('#announceText');
+      if (textEl) textEl.dataset.ts = ts;
+      if (text && localStorage.getItem(key) !== '1') {
+        textEl.textContent = text;
+        bar.classList.remove('hidden');
+      } else {
+        bar.classList.add('hidden');
+      }
+      return;
+    }
     try {
       const res = await fetch('/api/announcement', { cache: 'no-store' });
       const d = await res.json();

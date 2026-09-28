@@ -44,6 +44,13 @@ function main() {
   // 数据：重写相对媒体路径后注入 data.js
   const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
   const { password, ...pub } = raw; // 排除密码字段，避免静态站泄露
+  // 从 meta.json 注入公告数据（站内即时公告）；缺失时降级为空公告
+  let announcement = { text: '', ts: null };
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'meta.json'), 'utf8'));
+    announcement = (meta && meta.announcement) || announcement;
+  } catch (e) { /* meta.json 不存在时使用空公告 */ }
+  pub.announcement = announcement;
   relativizeMedia(pub);
   fs.writeFileSync(path.join(OUT, 'data.js'), 'window.STATIC_DATA = ' + JSON.stringify(pub) + ';');
 
