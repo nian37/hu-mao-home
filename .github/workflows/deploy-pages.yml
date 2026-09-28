@@ -1,12 +1,13 @@
-name: Deploy static site to Cloudflare Pages
+name: Deploy dynamic site to Cloudflare Pages
 
 on:
   push:
     branches: [main]
     paths:
       - 'public/**'
-      - 'data/**'
-      - 'build-static.js'
+      - 'worker.js'
+      - 'functions/**'
+      - 'wrangler.pages.toml'
       - 'package.json'
       - 'package-lock.json'
   workflow_dispatch:
@@ -23,12 +24,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Build static site
-        run: node build-static.js
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy dynamic site to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy static-site --project-name=humiao-home
+          command: pages deploy public --config=wrangler.pages.toml
           workingDirectory: .
