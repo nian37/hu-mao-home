@@ -726,6 +726,10 @@
   // ---------- 管理推送（公告 + 系统通知） ----------
   window.openPush = () => {
     if (IS_STATIC) { toast('线上为只读模式，请在本站后台推送', 'err'); return; }
+    if (sessionPwd === '') { toast('请先开启管理员模式，才能使用推送', 'err'); return; }
+    // 已进入管理员模式：自动带入管理密码，发送时即用当前解锁的密码
+    const pwdEl = $('#pu_password');
+    if (pwdEl) pwdEl.value = sessionPwd;
     $('#pushModal').classList.remove('hidden');
   };
   window.closePush = () => $('#pushModal').classList.add('hidden');
