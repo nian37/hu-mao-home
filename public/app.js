@@ -631,7 +631,7 @@
     if (!('serviceWorker' in navigator)) return null;
     if (navigator.serviceWorker.controller) return navigator.serviceWorker;
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js');
+      const reg = await navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
       return await navigator.serviceWorker.ready;
     } catch (e) { return null; }
   }
