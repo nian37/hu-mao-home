@@ -1,7 +1,0 @@
-name = "humiao-home"
-compatibility_date = "2024-11-01"
-
-# 复用与 Worker 相同的 KV 命名空间，保证数据一致
-[[kv_namespaces]]
-binding = "HUMIAO_DATA"
-id = "6925ba78c98543209413f5d0f129ef4a"

@@ -28,11 +28,11 @@ jobs:
           curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/humiao-home" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data '{"deployment_configs":{"production":{"kv_namespaces":[{"binding":"HUMIAO_DATA","namespace_id":"'"$KV_ID"'"}]}}}'
+            --data '{"deployment_configs":{"production":{"kv_namespaces":{"HUMIAO_DATA":"'"$KV_ID"'"}}}}'
       - name: Deploy dynamic site to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy public
+          command: pages deploy public --project-name=humiao-home
           workingDirectory: .
