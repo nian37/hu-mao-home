@@ -1,10 +1,10 @@
 /* 虎猫的小屋 · Service Worker（离线 + 安装） */
-const CACHE = 'humao-cache-v8';
+const CACHE = 'humao-cache-v9';
 const APP_SHELL = [
   './',
   './index.html',
   './style.css?v=7',
-  './app.js?v=8',
+  './app.js?v=9',
   './manifest.webmanifest',
   './icons/icon-144.png',
   './icons/icon-192.png',

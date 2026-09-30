@@ -388,8 +388,8 @@
 
   // ---------- 🐾 养宠小屋 ----------
   const PET_IMAGES = {
-    tiger: { src: 'pets/tiger.png', name: '小虎', emoji: '🐯', sub: '口嫌体正直的傲娇虎', barColor: 'var(--tiger, #d97e06)' },
-    cat: { src: 'pets/cat.png', name: '小猫', emoji: '🐱', sub: '安静治愈的橘猫妹妹', barColor: 'var(--cat, #e8873c)' }
+    tiger: { src: 'pets/tiger.png', name: '小虎', emoji: '🐯', sub: '温柔体贴的小虎哥哥', barColor: 'var(--tiger, #d97e06)' },
+    cat: { src: 'pets/cat.png', name: '小猫', emoji: '🐱', sub: '帅气爱耍酷的小猫弟弟', barColor: 'var(--cat, #e8873c)' }
   };
   const STAGE_NAMES = ['🥚 幼年', '🌟 成长期', '👑 完全体'];
   const PKEY = 'humiao_pets_save_v1';
