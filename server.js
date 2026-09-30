@@ -286,6 +286,96 @@ app.post('/api/push', requireAuth, async (req, res) => {
   res.json({ ok: true, sent, failed, total: meta.pushSubs.length, ts: annTs });
 });
 
+// ---------- 🐾 养宠：云存档 / 签到 / 排行榜（访客级，无需密码） ----------
+const PETS_FILE = path.join(DATA_DIR, 'pets.json');
+function loadPets() {
+  try {
+    if (fs.existsSync(PETS_FILE)) return JSON.parse(fs.readFileSync(PETS_FILE, 'utf8')) || {};
+  } catch (e) {}
+  return {};
+}
+function savePets(obj) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(PETS_FILE, JSON.stringify(obj));
+}
+// pets = { saves: { clientId: state }, checkins: { clientId: {last, streak} }, leaderboard: [rows] }
+let petsStore = null;
+function getPetsStore() {
+  if (!petsStore) petsStore = Object.assign({ saves: {}, checkins: {}, leaderboard: [] }, loadPets());
+  return petsStore;
+}
+
+app.get('/api/pets/load', (req, res) => {
+  const clientId = String(req.query.clientId || '').slice(0, 64);
+  const store = getPetsStore();
+  if (!clientId) return res.json({ ok: false, state: null });
+  const state = store.saves[clientId] || null;
+  const checkin = store.checkins[clientId] || null;
+  res.json({ ok: true, state, checkin });
+});
+
+app.post('/api/pets/save', (req, res) => {
+  const store = getPetsStore();
+  const clientId = String(req.body.clientId || '').slice(0, 64);
+  const incoming = req.body.state;
+  if (!clientId || !incoming || typeof incoming !== 'object') return res.status(400).json({ ok: false, message: '参数不完整' });
+  let server = store.saves[clientId];
+  if (!server) server = incoming;
+  else {
+    ['tiger', 'cat'].forEach((k) => {
+      const a = server[k] || {}, b0 = incoming[k] || {};
+      const merged = {};
+      ['love', 'food', 'mood', 'energy', 'exp', 'stage'].forEach((attr) => {
+        merged[attr] = Math.max(Number(a[attr] || 0), Number(b0[attr] || 0));
+      });
+      merged.last = b0.last || a.last || Date.now();
+      merged.wear = b0.wear || a.wear || null;
+      server[k] = merged;
+    });
+  }
+  store.saves[clientId] = server;
+  savePets(store);
+  res.json({ ok: true, state: server });
+});
+
+app.post('/api/pets/checkin', (req, res) => {
+  const store = getPetsStore();
+  const clientId = String(req.body.clientId || '').slice(0, 64);
+  if (!clientId) return res.status(400).json({ ok: false, message: '缺少 clientId' });
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  let cin = store.checkins[clientId];
+  let streak = 1, already = false;
+  if (cin) {
+    if (cin.last === today) already = true;
+    else streak = cin.last === yesterday ? (cin.streak || 0) + 1 : 1;
+  }
+  cin = { last: today, streak };
+  store.checkins[clientId] = cin;
+  savePets(store);
+  res.json({ ok: true, already, streak, today });
+});
+
+app.get('/api/pets/leaderboard', (req, res) => {
+  const store = getPetsStore();
+  const rows = [...store.leaderboard].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 100);
+  res.json({ ok: true, list: rows });
+});
+
+app.post('/api/pets/leaderboard', (req, res) => {
+  const store = getPetsStore();
+  const clientId = String(req.body.clientId || '').slice(0, 64);
+  const name = String(req.body.name || '小可爱').slice(0, 20);
+  const score = Math.max(0, Number(req.body.score || 0) || 0);
+  if (!clientId) return res.status(400).json({ ok: false, message: '缺少 clientId' });
+  store.leaderboard = store.leaderboard.filter((r) => r && r.clientId !== clientId);
+  store.leaderboard.push({ clientId, name, score, ts: Date.now() });
+  if (store.leaderboard.length > 500) store.leaderboard = store.leaderboard.slice(-500);
+  savePets(store);
+  const rows = [...store.leaderboard].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 100);
+  res.json({ ok: true, list: rows });
+});
+
 // ---------- 写操作（需密码） ----------
 app.post('/api/:collection', requireAuth, (req, res) => {
   const c = req.params.collection;

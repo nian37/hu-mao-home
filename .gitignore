@@ -4,6 +4,7 @@ node_modules/
 data/uploads/
 data/data.json
 data/meta.json
+data/pets.json
 .trae-html-share-packages/
 static-site/
 pages-site/

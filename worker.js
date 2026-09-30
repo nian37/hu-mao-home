@@ -302,6 +302,99 @@ export default {
       return json({ ok: true, text, ts });
     }
 
+    // ============ 🐾 养宠：云存档 / 签到 / 排行榜（访客级，无需密码） ============
+    if (segment === 'pets') {
+      const sub = parts[2]; // sync | save | load | checkin | leaderboard
+
+      if (method === 'GET' && sub === 'load') {
+        const clientId = url.searchParams.get('clientId') || '';
+        if (!clientId) return json({ ok: false, state: null });
+        const raw = await env.HUMIAO_DATA.get('pets:' + clientId);
+        let state = null;
+        try { state = raw ? JSON.parse(raw) : null; } catch (e) { state = null; }
+        // 附带签到信息
+        const cinRaw = await env.HUMIAO_DATA.get('pets_checkin:' + clientId);
+        let checkin = null;
+        try { checkin = cinRaw ? JSON.parse(cinRaw) : null; } catch (e) { checkin = null; }
+        return json({ ok: true, state, checkin });
+      }
+
+      // 同步存档：任意客户端保存/合并。为防误覆盖，服务端采用“总分合并”（取各项更高者）。
+      if (method === 'POST' && sub === 'save') {
+        const b = await readBody(request);
+        const clientId = String(b.clientId || '').slice(0, 64);
+        const incoming = b.state;
+        if (!clientId || !incoming || typeof incoming !== 'object') return json({ ok: false, message: '参数不完整' }, 400);
+        const raw = await env.HUMIAO_DATA.get('pets:' + clientId);
+        let server = null;
+        try { server = raw ? JSON.parse(raw) : null; } catch (e) { server = null; }
+        if (!server) server = incoming;
+        else {
+          // 合并每只宠物的每项属性（取最高）
+          ['tiger', 'cat'].forEach((k) => {
+            const a = server[k] || {}, b0 = incoming[k] || {};
+            const merged = {};
+            ['love', 'food', 'mood', 'energy', 'exp', 'stage'].forEach((attr) => {
+              merged[attr] = Math.max(Number(a[attr] || 0), Number(b0[attr] || 0));
+            });
+            merged.last = b0.last || a.last || Date.now();
+            merged.wear = b0.wear || a.wear || null;
+            server[k] = merged;
+          });
+        }
+        await env.HUMIAO_DATA.put('pets:' + clientId, JSON.stringify(server));
+        return json({ ok: true, state: server });
+      }
+
+      // 每日签到（按 UTC 日期，一天一次），返回连续天数与奖励
+      if (method === 'POST' && sub === 'checkin') {
+        const b = await readBody(request);
+        const clientId = String(b.clientId || '').slice(0, 64);
+        if (!clientId) return json({ ok: false, message: '缺少 clientId' }, 400);
+        const today = new Date().toISOString().slice(0, 10);
+        const cinRaw = await env.HUMIAO_DATA.get('pets_checkin:' + clientId);
+        let cin = null;
+        try { cin = cinRaw ? JSON.parse(cinRaw) : null; } catch (e) { cin = null; }
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        let streak = 1;
+        let already = false;
+        if (cin) {
+          if (cin.last === today) already = true;
+          else streak = cin.last === yesterday ? (cin.streak || 0) + 1 : 1;
+        }
+        cin = { last: today, streak };
+        await env.HUMIAO_DATA.put('pets_checkin:' + clientId, JSON.stringify(cin));
+        return json({ ok: true, already, streak, today });
+      }
+
+      // 排行榜：按“成长值总分”upsert 单条，返回 TOP 100
+      if (method === 'GET' && sub === 'leaderboard') {
+        const raw = await env.HUMIAO_DATA.get('pets_leaderboard');
+        let rows = [];
+        try { rows = raw ? JSON.parse(raw) : []; } catch (e) { rows = []; }
+        rows.sort((a, b) => (b.score || 0) - (a.score || 0));
+        return json({ ok: true, list: rows.slice(0, 100) });
+      }
+      if (method === 'POST' && sub === 'leaderboard') {
+        const b = await readBody(request);
+        const clientId = String(b.clientId || '').slice(0, 64);
+        const name = String(b.name || '小可爱').slice(0, 20);
+        const score = Math.max(0, Number(b.score || 0) || 0);
+        if (!clientId) return json({ ok: false, message: '缺少 clientId' }, 400);
+        const raw = await env.HUMIAO_DATA.get('pets_leaderboard');
+        let rows = [];
+        try { rows = raw ? JSON.parse(raw) : []; } catch (e) { rows = []; }
+        rows = rows.filter((r) => r && r.clientId !== clientId);
+        rows.push({ clientId, name, score, ts: Date.now() });
+        if (rows.length > 500) rows = rows.slice(-500);
+        await env.HUMIAO_DATA.put('pets_leaderboard', JSON.stringify(rows));
+        rows.sort((a, b) => (b.score || 0) - (a.score || 0));
+        return json({ ok: true, list: rows.slice(0, 100) });
+      }
+
+      return json({ ok: false, message: '未知养宠操作' }, 404);
+    }
+
     // Web Push：提供公钥、保存订阅、管理员群发推送
     if (method === 'GET' && segment === 'push-key') {
       return json({ publicKey: VAPID_PUBLIC_KEY, subject: VAPID_SUBJECT });

@@ -16,7 +16,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=7" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
 </head>
 <body>
@@ -56,6 +56,7 @@
   <!-- 导航 -->
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="profile">🏡 个人信息</button>
+    <button class="tab" data-tab="pets">🐾 养宠小屋</button>
     <button class="tab" data-tab="duoCards">💞 双人小卡</button>
     <button class="tab" data-tab="tigerCards">🐯 虎·单人小卡</button>
     <button class="tab" data-tab="catCards">🐱 猫·单人小卡</button>
@@ -72,6 +73,7 @@
   <!-- 内容区 -->
   <main class="content" id="content">
     <section id="view-profile" class="view"></section>
+    <section id="view-pets" class="view hidden"></section>
     <section id="view-duoCards" class="view hidden"></section>
     <section id="view-tigerCards" class="view hidden"></section>
     <section id="view-catCards" class="view hidden"></section>
@@ -217,7 +219,7 @@
   <!-- 页内轻提示 -->
   <div id="toast"></div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=8"></script>
   <script>
     // 注册 Service Worker（离线 + 添加到主屏幕）
     if ('serviceWorker' in navigator) {

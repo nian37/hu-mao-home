@@ -9,6 +9,7 @@
   const IS_STATIC = typeof window.STATIC_DATA !== 'undefined';
 
   const collections = {
+    pets: { title: '🐾 养宠小屋', sub: '养一养小虎和小猫，陪它们一起长大', type: 'pets' },
     duoCards: { title: '💞 虎猫双人小卡', sub: '双人合照 / 官方小卡 / 同框瞬间', type: 'grid' },
     tigerCards: { title: '🐯 虎·单人小卡', sub: '虎的单人小卡收藏', type: 'grid' },
     catCards: { title: '🐱 猫·单人小卡', sub: '猫的单人小卡收藏', type: 'grid' },
@@ -148,8 +149,9 @@
 
     let body = '';
     const cat = catOf(coll);
+    if (coll === 'pets') { renderPetsView(v); return; }
     if (!list.length) {
-      body = `<div class="empty">😺 这里还是空的，等你来填满～<small>解锁后点击右上“添加”即可记录</small></div>`;
+      body = `<div class="empty">😺 这里还是空的，等你来填满～<small>解锁后点击右上"添加"即可记录</small></div>`;
     } else if (cat === 'notify') {
       body = `<div class="notify-list">` + list.map((r) => `
         <div class="notify-item">
@@ -383,6 +385,463 @@
       <label>内容<textarea id="f_content" rows="4">${esc(rec ? (rec.content || '') : '')}</textarea></label>
     `;
   }
+
+  // ---------- 🐾 养宠小屋 ----------
+  const PET_IMAGES = {
+    tiger: { src: 'pets/tiger.png', name: '小虎', emoji: '🐯', sub: '口嫌体正直的傲娇虎', barColor: 'var(--tiger, #d97e06)' },
+    cat: { src: 'pets/cat.png', name: '小猫', emoji: '🐱', sub: '安静治愈的橘猫妹妹', barColor: 'var(--cat, #e8873c)' }
+  };
+  const STAGE_NAMES = ['🥚 幼年', '🌟 成长期', '👑 完全体'];
+  const PKEY = 'humiao_pets_save_v1';
+
+  // 初始化宠物状态（首次 / 重置）
+  function defaultPets() {
+    const now = Date.now();
+    return {
+      tiger: { love: 30, food: 60, mood: 70, energy: 80, stage: 0, exp: 0, last: now },
+      cat: { love: 30, food: 60, mood: 70, energy: 80, stage: 0, exp: 0, last: now }
+    };
+  }
+  function loadPetsState() {
+    if (typeof localStorage === 'undefined') return defaultPets();
+    try {
+      const raw = localStorage.getItem(PKEY);
+      if (raw) {
+        const merged = Object.assign(defaultPets(), JSON.parse(raw));
+        applyOffline(merged);
+        return merged;
+      }
+    } catch (e) {}
+    return defaultPets();
+  }
+  function savePetsState(state) {
+    try { localStorage.setItem(PKEY, JSON.stringify(state)); } catch (e) {}
+  }
+  // 离线时长衰减：空闲时属性自然变化
+  function applyOffline(state) {
+    const now = Date.now();
+    Object.keys(state).forEach((k) => {
+      const p = state[k];
+      const mins = Math.floor((now - (p.last || now)) / 60000);
+      if (mins > 0) {
+        // 每 20 分钟统一下降一点，最多衰减 15
+        const drop = Math.min(15, Math.floor(mins / 20));
+        p.food = Math.max(0, p.food - drop);
+        p.energy = Math.max(0, p.energy - drop);
+        p.mood = Math.max(0, p.mood - drop);
+        p.last = now;
+      }
+    });
+    savePetsState(state);
+  }
+  function stageOf(stats) {
+    return stats.stage || 0;
+  }
+  function petStageLabel(pet, key) {
+    const stage = stageOf(pet);
+    return `${STAGE_NAMES[stage]}`;
+  }
+  // 加经验 / 升段
+  function addExp(state, key, n) {
+    const p = state[key];
+    p.exp = Math.min(100, (p.exp || 0) + n);
+    if (p.exp >= 100 && p.stage < 2) {
+      p.stage += 1;
+      p.exp = 0;
+      toast(`${PET_IMAGES[key].name} 长大啦！♪(^∇^*)`);
+    }
+  }
+
+  // ---------- 养宠云同步：clientId / API ----------
+  function getClientId() {
+    if (typeof localStorage === 'undefined') return '';
+    let id = localStorage.getItem('humiao_pets_cid');
+    if (!id) {
+      id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem('humiao_pets_cid', id); } catch (e) {}
+    }
+    return id;
+  }
+  let petCloudName = '';
+  try { petCloudName = localStorage.getItem('humiao_pets_name') || ''; } catch (e) {}
+  async function apiPets(action, params, method = 'POST') {
+    try {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (method === 'GET') {
+        const qs = new URLSearchParams(params).toString();
+        const res = await fetch('/api/pets/' + action + (qs ? '?' + qs : ''), { cache: 'no-store' });
+        return await res.json();
+      }
+      opts.body = JSON.stringify(params);
+      const res = await fetch('/api/pets/' + action, opts);
+      return await res.json();
+    } catch (e) { return { ok: false }; }
+  }
+  // 成长值总分（用于排行榜）：四项属性求和 + 阶段加成
+  function petTotalScore(state) {
+    let s = 0;
+    ['tiger', 'cat'].forEach((k) => {
+      const p = state[k] || {};
+      s += (p.love || 0) + (p.food || 0) + (p.mood || 0) + (p.energy || 0) + (p.stage || 0) * 80 + (p.exp || 0);
+    });
+    return s;
+  }
+  let petsSyncing = false;
+  function syncPetsToCloud(state) {
+    const cid = getClientId();
+    if (!cid) return;
+    if (petsSyncing) return;
+    petsSyncing = true;
+    savePetsState(state);
+    // 云端合并存档
+    apiPets('save', { clientId: cid, state }).finally(() => { petsSyncing = false; });
+    // 更新排行榜（名字用 localStorage 保存的昵称）
+    const name = (petCloudName || '小可爱');
+    apiPets('leaderboard', { clientId: cid, name, score: petTotalScore(state) });
+  }
+
+  function renderPetsView(v) {
+    const state = loadPetsState();
+    const editable = sessionPwd !== '';
+    const cid = getClientId();
+    v.innerHTML = `
+      <div class="view-title">🐾 养宠小屋</div>
+      <div class="view-sub">养一养小虎和小猫，陪它们一起长大。支持云存档、每日签到和成长排行榜～</div>
+      <div class="pets-syncbar">
+        <span class="pets-cloud" id="petsCloudStatus">☁️ 正在连接云端…</span>
+        <input id="petNameInput" class="pets-name-input" placeholder="输入我的昵称" value="${esc(petCloudName)}" maxlength="16" />
+        <button class="btn btn-primary" id="petNameBtn">✏️ 换昵称</button>
+        <button class="btn" id="petCheckinBtn">📅 签到</button>
+        <button class="btn" id="petBallBtn">🏆 排行榜</button>
+      </div>
+      <div class="pets-checkin" id="petsCheckinBox"></div>
+      <div class="pets-radio" id="petsRadio"></div>
+      <div class="pets-wrap">
+        ${petPanelHTML('tiger', state.tiger)}
+        ${petPanelHTML('cat', state.cat)}
+      </div>
+      <div class="pets-wear">
+        <div class="pets-wear-title">👔 换装间</div>
+        <div class="pets-wear-body" id="petsWearBody"><i style="color:var(--ink-soft);font-style:normal">加载中…</i></div>
+      </div>
+      <div class="pets-actions">
+        ${editable ? '<button class="btn btn-primary" onclick="window.petFullAll()">⚡ 全部满格</button><button class="btn btn-danger" onclick="window.petResetAll()">♻️ 重置养宠</button>' : ''}
+        <span class="hint" style="margin-left:auto">💾 进度实时自动保存 + 云同步</span>
+      </div>
+      <div id="petsLeaderboard" class="pets-leaderboard"></div>
+      <div class="pet-purr" id="petPurr"></div>
+    `;
+    bindPetEvents(v, state);
+    bindPetCloudUI(v, state);
+    refreshPetsCloudStatus();
+  }
+
+  // 云端：读存档合并 + 更新签到/排行榜 UI + 换装渲染
+  function refreshPetsCloudStatus() {
+    const el = $('#petsCloudStatus');
+    const cid = getClientId();
+    if (!el) return;
+    el.textContent = '☁️ 云端同步中…';
+    apiPets('load', { clientId: cid }, 'GET').then((r) => {
+      const v = $('#view-pets');
+      if (!v) return;
+      const state = loadPetsState();
+      if (r && r.ok && r.state) {
+        // 与服务端合并（取各属性更高值），避免互相覆盖
+        ['tiger', 'cat'].forEach((k) => {
+          const a = state[k] || {}, b0 = r.state[k] || {};
+          ['love', 'food', 'mood', 'energy', 'exp', 'stage'].forEach((attr) => {
+            state[k][attr] = Math.max(Number(a[attr] || 0), Number(b0[attr] || 0));
+          });
+          if (b0.wear !== undefined) state[k].wear = b0.wear;
+        });
+        savePetsState(state);
+        renderPetStatsAndWears(state);
+      }
+      if (el) el.textContent = '☁️ 云存档已同步 · 联网可跨设备继续' + (r && r.ok ? '' : '（离线，仅本地）');
+      // 签到状态
+      const ok = r && r.checkin;
+      const checkinBox = $('#petsCheckinBox');
+      if (checkinBox) {
+        if (ok && ok.last && ok.last === new Date().toISOString().slice(0, 10)) {
+          checkinBox.innerHTML = `📅 今天已签到 · 连续 ${ok.streak} 天 ✨`;
+          checkinBox.classList.remove('hidden');
+        }
+      }
+    });
+    // 拉取排行榜
+    apiPets('leaderboard', null, 'GET').then((r) => {
+      const box = $('#petsLeaderboard');
+      if (!box) return;
+      if (!r || !r.ok || !r.list || !r.list.length) { box.innerHTML = ''; return; }
+      const top = r.list.slice(0, 10);
+      const cidNow = cid;
+      let html = '<div class="pets-leaderboard-title">🏆 养宠成长榜 TOP' + Math.min(top.length, 10) + '</div><div class="pets-lb-list">';
+      top.forEach((row, i) => {
+        const isMe = row.clientId === cidNow;
+        html += `<div class="pets-lb-row ${isMe ? 'me' : ''}">
+          <span class="pets-lb-rank">${i + 1}</span>
+          <span class="pets-lb-name">${esc(row.name || '小可爱')}${isMe ? '（我）' : ''}</span>
+          <span class="pets-lb-score">${row.score} 分</span>
+        </div>`;
+      });
+      html += '</div>';
+      box.innerHTML = html;
+    });
+  }
+
+  // 仅刷新统计条和换装预览（不改动 DOM 绑定）
+  function renderPetStatsAndWears(state) {
+    const v = $('#view-pets');
+    if (!v) return;
+    ['tiger', 'cat'].forEach((k) => {
+      const pet = state[k] || {};
+      ['love', 'food', 'mood', 'energy'].forEach((a) => {
+        const bar = v.querySelector(`.pet-bar i[data-pet="${k}"][data-k="${a}"]`);
+        const val = v.querySelector(`[data-pet="${k}"][data-v="${a}"]`);
+        if (bar) bar.style.width = pet[a] + '%';
+        if (val) val.textContent = pet[a];
+      });
+      const expBar = v.querySelector(`[data-pet="${k}"][data-exp]`);
+      const expTxt = v.querySelector(`.pets-wrap [data-pet="${k}"] .pet-exp-txt`);
+      if (expBar) expBar.style.width = pet.exp + '%';
+      if (expTxt) expTxt.textContent = '已点亮 ' + pet.exp + '% 成长值';
+    });
+  }
+
+  // ---------- 换装系统 ----------
+  const WEARS = {
+    none: { label: '👒 默认', overlay: '', bg: 'var(--bg-soft)' },
+    hat: { label: '🎩 绅士帽', overlay: '🎩', bg: '#FDE68A' },
+    bow: { label: '🎀 蝴蝶结', overlay: '🎀', bg: '#FBCFE8' },
+    crown: { label: '👑 小皇冠', overlay: '👑', bg: '#FEF3C7' },
+    scarf: { label: '🧣 小围巾', overlay: '🧣', bg: '#CFFAFE' },
+    glasses: { label: '🕶 酷墨镜', overlay: '🕶', bg: '#E0E7FF' }
+  };
+  function wearSelectHtml(key, pet) {
+    const current = pet.wear || 'none';
+    let html = '';
+    Object.keys(WEARS).forEach((w) => {
+      const it = WEARS[w];
+      html += `<button class="wear-btn ${current === w ? 'on' : ''}" data-wearpet="${key}" data-wear="${w}">${it.label}</button>`;
+    });
+    return html;
+  }
+  function bindPetsWearUI(v, state) {
+    $('#petsWearBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-wearpet]');
+      if (!btn) return;
+      const petk = btn.dataset.wearpet;
+      const w = btn.dataset.wear;
+      state[petk].wear = w;
+      savePetsState(state);
+      syncPetsToCloud(state);
+      // 更新该项按钮高亮 + 图片框
+      v.querySelectorAll(`[data-wearpet="${petk}"]`).forEach((b) => b.classList.remove('on'));
+      btn.classList.add('on');
+      const imgBox = v.querySelector(`.pet-panel[data-pet="${petk}"] .pet-img`);
+      applyWearToBox(imgBox, state[petk]);
+    });
+  }
+  function applyWearToBox(box, pet) {
+    if (!box) return;
+    const w = pet.wear;
+    const it = WEARS[w] || WEARS.none;
+    box.style.background = it.bg;
+    let ov = box.querySelector('.pet-wear-ov');
+    if (!ov) {
+      ov = document.createElement('span');
+      ov.className = 'pet-wear-ov';
+      box.appendChild(ov);
+    }
+    ov.textContent = it.overlay;
+    ov.style.display = it.overlay ? '' : 'none';
+  }
+
+  function renderPetPanelWear(key, pet) {
+    // CSS 里 .pet-wear-ov 居中叠在图片上方
+    const v = $('#view-pets');
+    if (!v) return;
+    const box = v.querySelector(`.pet-panel[data-pet="${key}"] .pet-img`);
+    applyWearToBox(box, pet);
+  }
+
+  // 云存档 UI：昵称 / 签到 / 排行榜开关 / 换装渲染
+  function bindPetCloudUI(v, state) {
+    const nameBtn = $('#petNameBtn');
+    const nameInput = $('#petNameInput');
+    if (nameBtn) nameBtn.addEventListener('click', () => {
+      const val = (nameInput.value || '').trim().slice(0, 16);
+      if (!val) { toast('昵称不能为空', 'err'); return; }
+      petCloudName = val;
+      try { localStorage.setItem('humiao_pets_name', val); } catch (e) {}
+      syncPetsToCloud(state);
+      toast('昵称已更新：' + val + ' 🎉');
+      refreshPetsCloudStatus();
+    });
+    const ci = $('#petCheckinBtn');
+    if (ci) ci.addEventListener('click', () => {
+      const cid = getClientId();
+      apiPets('checkin', { clientId: cid }).then((r) => {
+        if (!r || !r.ok) { toast('签到失败，请检查网络', 'err'); return; }
+        // 奖励：吃到/陪玩随机成长
+        const reward = 8 + Math.floor(Math.random() * 6);
+        if (!r.already) {
+          ['tiger', 'cat'].forEach((k) => {
+            state[k].mood = Math.min(100, (state[k].mood || 0) + 5);
+            addExp(state, k, reward);
+          });
+          savePetsState(state);
+          syncPetsToCloud(state);
+          renderPetStatsAndWears(state);
+          $('#petsCheckinBox').innerHTML = `📅 签到成功！连续 ${r.streak} 天，两只都点亮成长值 +${reward} ✨`;
+          $('#petsCheckinBox').classList.remove('hidden');
+          toast(`签到成功 · 连续 ${r.streak} 天 🎉`);
+        } else {
+          toast(`今天已经签到过啦（连续 ${r.streak} 天）`, '');
+        }
+      });
+    });
+    const bb = $('#petBallBtn');
+    const lb = $('#petsLeaderboard');
+    if (bb) bb.addEventListener('click', () => {
+      if (!lb) return;
+      const hidden = lb.classList.toggle('hidden');
+      bb.textContent = hidden ? '🏆 排行榜' : '🙈 收起排行';
+    });
+    // 换装渲染
+    refreshPetsWear(v, state);
+  }
+  function refreshPetsWear(v, state) {
+    const body = $('#petsWearBody');
+    if (!body) return;
+    const idx = { tiger: 0, cat: 1 };
+    body.innerHTML = `
+      <div class="pets-wear-group">🐯 小虎${wearSelectHtml('tiger', state.tiger)}</div>
+      <div class="pets-wear-group">🐱 小猫${wearSelectHtml('cat', state.cat)}</div>
+    `;
+    bindPetsWearUI(v, state);
+    ['tiger', 'cat'].forEach((k) => { if (state[k] && state[k].wear) renderPetPanelWear(k, state[k]); });
+  }
+
+  function petPanelHTML(key, pet) {
+    const meta = PET_IMAGES[key];
+    const bar = (k, icon, label) => `
+      <div class="pet-stat">
+        <span class="pet-stat-lbl">${icon} ${label}</span>
+        <div class="pet-bar"><i data-pet="${key}" data-k="${k}" style="width:${pet[k]}%;background:${meta.barColor}"></i></div>
+        <span class="pet-stat-val" data-pet="${key}" data-v="${k}">${pet[k]}</span>
+      </div>`;
+    const it = WEARS[pet.wear] || WEARS.none;
+    return `
+      <div class="pet-panel" data-pet="${key}">
+        <div class="pet-img" style="background:${it.bg}">
+          <img src="${meta.src}" alt="${meta.name}" />
+          <span class="pet-wear-ov" style="display:${it.overlay ? '' : 'none'}">${it.overlay}</span>
+          <span class="pet-emoji">${meta.emoji}</span>
+        </div>
+        <div class="pet-head">
+          <span class="pet-name">${meta.name}</span>
+          <span class="pet-stage" data-pet="${key}" data-stage>${petStageLabel(pet, key)}</span>
+        </div>
+        <div class="pet-sub">${meta.sub}</div>
+        <div class="pet-stats">
+          ${bar('love', '💗', '亲密度')}
+          ${bar('food', '🍖', '饱腹度')}
+          ${bar('mood', '😊', '心情')}
+          ${bar('energy', '⚡', '精力')}
+        </div>
+        <div class="pet-exp"><div class="pet-exp-bar"><i data-pet="${key}" data-exp style="width:${pet.exp}%"></i></div><span class="pet-exp-txt">已点亮 ${pet.exp}% 成长值</span></div>
+        <div class="pet-btns">
+          <button class="btn" data-act="feed">🍖 喂食</button>
+          <button class="btn" data-act="pet">✋ 摸头</button>
+          <button class="btn" data-act="play">🎾 陪玩</button>
+          <button class="btn" data-act="sleep">😴 睡觉</button>
+        </div>
+        <div class="pet-msg" data-pet="${key}" data-msg>想和 ${meta.name} 一起玩吗？</div>
+      </div>`;
+  }
+
+  const PET_ACTIONS = {
+    feed: { d: { food: 15, energy: 3, love: 2 }, text: '吃得超香，鼓起了腮帮子！' },
+    pet: { d: { love: 8, mood: 5 }, text: '舒服地眯起了眼睛～' },
+    play: { d: { love: 5, mood: 10, energy: -10 }, text: '玩得可带劲了！' },
+    sleep: { d: { energy: 15, food: -2 }, text: '甜甜地睡着了 zZ…' }
+  };
+
+  let petInteractionTick = 0;
+  function bindPetEvents(v, state) {
+    v.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const panel = btn.closest('.pet-panel');
+        const key = panel.dataset.pet;
+        const pet = state[key];
+        const act = PET_ACTIONS[btn.dataset.act];
+        if (!pet || !act) return;
+        // 精力不足不能陪玩
+        if (btn.dataset.act === 'play' && pet.energy < 10) {
+          showPetMsg(key, '好累呀，先让小可爱睡一觉吧😴');
+          return;
+        }
+        Object.keys(act.d).forEach((k) => {
+          pet[k] = Math.max(0, Math.min(100, pet[k] + act.d[k]));
+          const bar = v.querySelector(`.pet-bar i[data-pet="${key}"][data-k="${k}"]`);
+          const val = v.querySelector(`[data-pet="${key}"][data-v="${k}"]`);
+          if (bar) bar.style.width = pet[k] + '%';
+          if (val) val.textContent = pet[k];
+        });
+        const exp = (btn.dataset.act === 'play' || btn.dataset.act === 'pet') ? 10 : 4;
+        addExp(state, key, exp);
+        // 立即显示升级/经验条
+        const expBar = v.querySelector(`[data-pet="${key}"][data-exp]`);
+        const expTxt = panel.querySelector('.pet-exp-txt');
+        if (expBar) expBar.style.width = pet.exp + '%';
+        if (expTxt) expTxt.textContent = '已点亮 ' + pet.exp + '% 成长值';
+        const stageEl = panel.querySelector('[data-stage]');
+        const stage = stageOf(pet);
+        if (stageEl) stageEl.textContent = STAGE_NAMES[stage];
+        showPetMsg(key, `${PET_IMAGES[key].name} ${act.text}`);
+        // 本地保存 + 节流云同步（每 3 次交互同步一次，兼顾频率）
+        petInteractionTick++;
+        savePetsState(state);
+        if (petInteractionTick % 3 === 0) syncPetsToCloud(state);
+        else if (petInteractionTick % 3 === 1) { /* 延后，避免频繁请求 */ }
+      });
+    });
+  }
+
+  function showPetMsg(key, msg) {
+    const v = $('#view-pets');
+    const el = v && v.querySelector(`[data-pet="${key}"][data-msg]`);
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('bounce');
+    setTimeout(() => el.classList.remove('bounce'), 900);
+  }
+
+  window.petFullAll = () => {
+    if (sessionPwd === '') return toast('请先解锁', 'err');
+    const state = loadPetsState();
+    Object.keys(state).forEach((k) => {
+      ['love', 'food', 'mood', 'energy'].forEach((a) => (state[k][a] = 100));
+      state[k].exp = 0;
+    });
+    savePetsState(state);
+    syncPetsToCloud(state);
+    renderCollection('pets');
+    toast('两只小可爱都精神满满啦 ✨');
+  };
+  window.petResetAll = () => {
+    if (sessionPwd === '') return toast('请先解锁', 'err');
+    if (!confirm('确定要重置养宠进度吗？所有属性与成长将恢复初始值，并同步云端。')) return;
+    localStorage.removeItem(PKEY);
+    const cid = getClientId();
+    if (cid) apiPets('save', { clientId: cid, state: defaultPets() });
+    petCloudName = '';
+    try { localStorage.removeItem('humiao_pets_name'); } catch (e) {}
+    renderCollection('pets');
+    toast('养宠进度已重置');
+  };
 
   function openRecordForm(coll, rec) {
     $('#modal').classList.remove('hidden');

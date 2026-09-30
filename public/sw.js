@@ -1,15 +1,17 @@
 /* 虎猫的小屋 · Service Worker（离线 + 安装） */
-const CACHE = 'humao-cache-v5';
+const CACHE = 'humao-cache-v8';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=5',
-  './app.js?v=5',
+  './style.css?v=7',
+  './app.js?v=8',
   './manifest.webmanifest',
   './icons/icon-144.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  './pets/tiger.png',
+  './pets/cat.png'
 ];
 
 self.addEventListener('install', (e) => {

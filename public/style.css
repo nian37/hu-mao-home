@@ -733,3 +733,103 @@ form label input:focus, form label textarea:focus {
   .ghost-btn { padding: 8px 12px; font-size: 12px; }
   .record-card .card-body { padding: 11px 13px 14px; }
 }
+
+/* ========== 🐾 养宠小屋 ========== */
+.pets-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.pet-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 16px 16px;
+  display: flex; flex-direction: column; align-items: center;
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  overflow: hidden;
+}
+.pet-img {
+  width: 148px; height: 148px;
+  border-radius: 34%;
+  background: var(--bg-soft);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  margin-bottom: 10px;
+  border: 2px dashed var(--line);
+}
+.pet-img img { height: 150px; max-width: 150px; object-fit: contain; }
+.pet-emoji { position: absolute; top: -8px; right: -4px; font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.18)); }
+.pet-head { display: flex; align-items: center; gap: 8px; }
+.pet-name { font-size: 20px; font-weight: 800; color: var(--ink); }
+.pet-stage { font-size: 12px; font-weight: 700; background: var(--bg-rose); color: var(--accent-deep); padding: 3px 10px; border-radius: 999px; }
+.pet-sub { font-size: 12px; color: var(--ink-soft); margin: 4px 0 12px; }
+.pet-stats { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.pet-stat { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pet-stat-lbl { width: 62px; flex: none; color: var(--ink); font-weight: 600; }
+.pet-bar { flex: 1; height: 11px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
+.pet-bar i { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
+.pet-stat-val { width: 26px; text-align: right; font-weight: 800; color: var(--ink); flex: none; font-size: 13px; }
+.pet-exp { width: 100%; margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+.pet-exp-bar { flex: 1; height: 8px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
+.pet-exp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #FBB6C9, #F59E0B); border-radius: 999px; transition: width .3s ease; }
+.pet-exp-txt { font-size: 11px; color: var(--ink-soft); flex: none; }
+.pet-btns { width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+.pet-btns .btn { padding: 9px 0; font-size: 13px; border-radius: 12px; background: var(--bg-rose); border: 1px solid var(--accent-rose); color: var(--accent-deep); font-weight: 700; }
+.pet-btns .btn:active { transform: scale(.95); }
+.pet-msg {
+  margin-top: 10px; font-size: 13px; color: var(--ink-soft);
+  background: var(--bg-soft); border-radius: 12px; padding: 8px 12px; width: 100%; text-align: center;
+  min-height: 20px; transition: transform .15s ease;
+}
+.pet-msg.bounce { animation: petBounce .5s ease; color: var(--accent-deep); font-weight: 700; }
+@keyframes petBounce { 0%,100%{transform:scale(1)} 40%{transform:scale(1.06)} }
+.pets-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.pets-note { background: var(--bg-rose); border: 1px dashed var(--accent-rose); color: var(--accent-deep); border-radius: 14px; padding: 9px 14px; font-size: 13px; margin-bottom: 16px; }
+@media (max-width: 700px) {
+  .pets-wrap { grid-template-columns: 1fr; }
+}
+
+/* ========== 🐾 养宠：云存档 / 签到 / 排行榜 / 换装 ========== */
+.pets-syncbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 14px;
+  padding: 10px 12px; margin-bottom: 14px;
+}
+.pets-cloud { font-size: 12px; color: var(--ink-soft); font-weight: 600; flex: 1 1 auto; min-width: 140px; }
+.pets-name-input {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  padding: 7px 10px; font-size: 13px; color: var(--ink); width: 130px;
+}
+.pets-checkin {
+  background: linear-gradient(90deg, #FDE68A, #FBCFE8); color: #7c2d12;
+  border-radius: 12px; padding: 9px 14px; font-size: 13px; font-weight: 700;
+  margin-bottom: 14px;
+}
+.pets-checkin.hidden { display: none; }
+.pets-wear { margin-top: 18px; }
+.pets-wear-title { font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+.pets-wear-body { display: flex; flex-direction: column; gap: 10px; }
+.pets-wear-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pets-wear-group > span:first-child { font-weight: 700; color: var(--ink); }
+.wear-btn {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s ease;
+}
+.wear-btn .txt { font-size: 12px; color: var(--accent-deep); }
+.wear-btn.on { background: var(--accent-rose); border-color: var(--accent-rose); color: #fff; }
+.wear-btn:active { transform: scale(.95); }
+.pet-wear-ov {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  font-size: 34px; pointer-events: none; z-index: 2;
+}
+.pets-leaderboard {
+  margin-top: 18px; background: linear-gradient(180deg, #FFF7ED, #FEF3C7);
+  border: 1px solid #FDE68A; border-radius: 14px; padding: 12px 14px;
+}
+.pets-leaderboard.hidden { display: none; }
+.pets-leaderboard-title { font-size: 15px; font-weight: 800; color: #92400e; margin-bottom: 8px; }
+.pets-lb-list { display: flex; flex-direction: column; gap: 5px; }
+.pets-lb-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #78350f; padding: 4px 8px; border-radius: 8px; }
+.pets-lb-row.me { background: rgba(251,146,60,.18); font-weight: 700; }
+.pets-lb-rank { font-weight: 800; width: 22px; }
+.pets-lb-name { flex: 1; }
+.pets-lb-score { font-weight: 800; color: #92400e; }
